@@ -4,22 +4,23 @@ def main():
     import sys
     import json
     from pathlib import Path
+    from datetime import datetime
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     import requests
 
-    # Default globals
-    CACHING_DIR = Path("/tmp")
-    COUNTRY_ISO = "DE"
-    SUBDIVISION_CODE = "DE-NW"
+    DEFAULT_TIMEZONE = "UTC"
+    DEFAULT_CACHE_DIR = Path("/tmp")
+    DEFAULT_COUNTRY = "DE"
+    DEFAULT_SUBDIVISION = "DE-NW"
 
     data = json.load(sys.stdin)
     response = {"xy": 1, "items": []}
     year_cache = {}
 
-    def load_holidays(year: int, country: str, subdivision: str) -> set:
-        # Cache file includes year, country, subdivision
+    def load_holidays(year: int, country: str, subdivision: str, cache_dir: Path) -> set:
         safe_country = country.replace("/", "_")
         safe_subdivision = subdivision.replace("/", "_")
-        cache_file = CACHING_DIR / f"holidays_{year}_{safe_country}_{safe_subdivision}.json"
+        cache_file = cache_dir / f"holidays_{year}_{safe_country}_{safe_subdivision}.json"
 
         if cache_file.exists():
             try:
@@ -29,9 +30,13 @@ def main():
 
         url = (
             f"https://openholidaysapi.org/PublicHolidays?"
-            f"countryIsoCode={country}&validFrom={year}-01-01&validTo={year}-12-31"
-            f"&languageIsoCode=DE&subdivisionCode={subdivision}"
+            f"countryIsoCode={country}"
+            f"&validFrom={year}-01-01"
+            f"&validTo={year}-12-31"
+            f"&languageIsoCode=DE"
+            f"&subdivisionCode={subdivision}"
         )
+
         try:
             r = requests.get(url, timeout=5)
             r.raise_for_status()
@@ -43,31 +48,39 @@ def main():
             return set()
 
     for item in data.get("items", []):
-        dargs = item.get("dargs", {})
         params = item.get("params", {})
 
-        caching_dir = Path(params.get("cachingDir", CACHING_DIR))
-        country = params.get("countryIsoCode", COUNTRY_ISO)
-        subdivision = params.get("subdivisionCode", SUBDIVISION_CODE)
+        tz_name = item.get("timezone", DEFAULT_TIMEZONE)
+        try:
+            tz = ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError:
+            tz = ZoneInfo(DEFAULT_TIMEZONE)
 
-        year = int(dargs.get("year", 0))
-        month = int(dargs.get("month", 0))
-        day = int(dargs.get("day", 0))
-        date_str = f"{year:04d}-{month:02d}-{day:02d}"
+        now_ts = int(item.get("now", 0))
+        local_dt = datetime.fromtimestamp(now_ts, tz=tz)
+        year = local_dt.year
+        date_str = local_dt.strftime("%Y-%m-%d")
 
-        if year not in year_cache:
-            year_cache[year] = load_holidays(year, country, subdivision)
-        holidays = year_cache[year]
+        cache_dir = Path(params.get("cachingDir", DEFAULT_CACHE_DIR))
+        country = params.get("countryIsoCode", DEFAULT_COUNTRY)
+        subdivision = params.get("subdivisionCode", DEFAULT_SUBDIVISION)
 
+        cache_key = (year, country, subdivision)
+        if cache_key not in year_cache:
+            year_cache[cache_key] = load_holidays(year, country, subdivision, cache_dir)
+
+        holidays = year_cache[cache_key]
         is_holiday = date_str in holidays
-        launch = True
+
         if is_holiday:
-            launch = params.get("executeOnHoliday", False)
+            launch = bool(params.get("executeOnHoliday", False))
+        else:
+            launch = True
 
         response["items"].append({"launch": launch})
 
     print(json.dumps(response))
 
+
 if __name__ == "__main__":
     main()
-
