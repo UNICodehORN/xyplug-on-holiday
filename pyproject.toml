@@ -1,6 +1,6 @@
 [project]
 name = "xyplug-on-holiday"
-version = "1.0.0"
+version = "1.0.2"
 description = "xyOps plugin to skip or execute jobs on public holidays"
 requires-python = ">=3.9"
 dependencies = [
