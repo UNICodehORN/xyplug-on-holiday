@@ -6,11 +6,11 @@
     {
       "type": "plugin",
       "data": {
-        "id": "xyplugOnHoliday",
+        "id": "pmjzimx4g68n0i1i",
         "title": "On Holiday",
         "type": "scheduler",
         "enabled": true,
-        "command": "uvx git+https://github.com/UNICodehORN/xyplug-on-holiday@v1.0.2",
+        "command": "uvx git+https://github.com/UNICodehORN/xyplug-on-holiday@v1.0.3",
         "script": "",
         "icon": "pine-tree",
         "notes": "Execute or skip xyOps schedules on public holidays using OpenHolidaysAPI.",
